@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+vendor/untrunc/
+vendor/recover_mp4/
+.recover-mp4-inspect/
+*.recovery-part.*

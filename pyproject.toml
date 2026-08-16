@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mp4-reference-repair"
+version = "1.2.0"
+description = "Safely repair truncated MP4/MOV files using a healthy reference recording"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "MP4 Reference Repair contributors" }]
+
+[project.scripts]
+mp4repair = "mp4repair.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mp4repair*"]
