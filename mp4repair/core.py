@@ -312,8 +312,21 @@ def _run_live(args: list[str], log: LogFn, cwd: Path | None = None) -> int:
 
 
 def _is_xavc(report: MediaReport) -> bool:
-    tags = report.format.get("tags", {})
-    return str(tags.get("major_brand", "")).casefold() == "xavc"
+    if str(report.format.get("tags", {}).get("major_brand", "")).casefold() == "xavc":
+        return True
+    ftyp = next((atom for atom in report.atoms if atom.name == "ftyp" and not atom.truncated), None)
+    if ftyp is None:
+        return False
+
+    # A truncated recording can retain its file type even when ffprobe can't read its tracks.
+    with report.path.open("rb") as clip:
+        clip.seek(ftyp.offset)
+        header_size = 16 if clip.read(4) == b"\x00\x00\x00\x01" else 8
+        clip.seek(ftyp.offset + header_size)
+        payload = clip.read(max(0, min(ftyp.available_size - header_size, 4096))).upper()
+    return payload[:4] == b"XAVC" or any(
+        payload[offset : offset + 4] == b"XAVC" for offset in range(8, len(payload), 4)
+    )
 
 
 def _video_frame_rate(report: MediaReport) -> str:
@@ -652,18 +665,18 @@ def repair(
                     if strategy == "remux":
                         raise
 
-        sony_extractor = find_recover_mp4(extractor)
-        if strategy == "sony-xavc" or (strategy == "auto" and _is_xavc(ref_report) and sony_extractor):
-            if not ffmpeg:
-                raise RepairError("Sony XAVC recovery requires ffmpeg on PATH.")
-            if not sony_extractor:
-                if extractor is not None:
-                    raise RepairError(f"Sony recovery engine not found: {extractor}")
-                try:
-                    sony_extractor = download_extractor(logger)
-                except SonyEngineError as exc:
-                    raise RepairError(str(exc)) from exc
+        auto_xavc = strategy == "auto" and (_is_xavc(bad_report) or _is_xavc(ref_report))
+        if strategy == "sony-xavc" or auto_xavc:
+            if auto_xavc:
+                logger("Auto detected Sony XAVC. Trying Sony recovery...")
             try:
+                if not ffmpeg:
+                    raise RepairError("Sony XAVC recovery requires FFmpeg.")
+                sony_extractor = find_recover_mp4(extractor)
+                if not sony_extractor:
+                    if extractor is not None:
+                        raise RepairError(f"Sony recovery engine not found: {extractor}")
+                    sony_extractor = download_extractor(logger)
                 output_report = _sony_extract_repair(
                     good,
                     bad,
@@ -674,13 +687,14 @@ def repair(
                     logger,
                     ffprobe,
                 )
+            except (RepairError, SonyEngineError, OSError) as exc:
+                if strategy == "sony-xavc":
+                    raise RepairError(str(exc)) from exc
+                logger(f"Sony XAVC recovery was unavailable or failed: {exc} Trying reference reconstruction...")
+            else:
                 _commit_temp(temp, out, overwrite)
                 output_report.path = out
                 return RepairResult(out, "sony-xavc-extraction", output_report)
-            except RepairError as exc:
-                logger(f"Sony XAVC extraction was not sufficient: {exc}")
-                if strategy == "sony-xavc":
-                    raise
 
         chosen_engine = find_untrunc(engine)
         if score is not None and score < 55:

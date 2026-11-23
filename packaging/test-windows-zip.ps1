@@ -76,28 +76,36 @@ try {
     $broken = Join-Path $testRoot 'standard cut off.mp4'
     $fixed = Join-Path $testRoot 'standard repaired.mp4'
     Remove-MovieIndex $normal $broken
-    & $cli repair $normal $broken -o $fixed --strategy reference
-    if ($LASTEXITCODE) { throw 'Bundled untrunc repair failed' }
+    & $cli repair $normal $broken -o $fixed | Tee-Object -Variable standardLog
+    if ($LASTEXITCODE -or -not ($standardLog -like 'Repair complete (reference-reconstruction)*')) {
+        throw 'Auto did not use bundled untrunc for standard repair'
+    }
     Test-RepairedMedia $fixed 30 1
 
     $remuxed = Join-Path $testRoot 'standard remuxed.mp4'
-    & $cli repair $normal $fixed -o $remuxed --strategy remux
-    if ($LASTEXITCODE) { throw 'Bundled FFmpeg remux failed' }
+    & $cli repair $normal $fixed -o $remuxed | Tee-Object -Variable remuxLog
+    if ($LASTEXITCODE -or -not ($remuxLog -like 'Repair complete (ffmpeg-remux)*')) {
+        throw 'Auto did not use bundled FFmpeg to remux a readable clip'
+    }
     Test-RepairedMedia $remuxed 30 1
+    if (Test-Path -LiteralPath $engine) { throw 'Sony engine was downloaded during standard repairs' }
 
     $sony = Join-Path $Fixtures 'sony.mov'
     $sonyBroken = Join-Path $testRoot 'sony cut off.mov'
     $sonyFixed = Join-Path $testRoot 'sony repaired.mp4'
     Remove-MovieIndex $sony $sonyBroken
-    & $cli repair $sony $sonyBroken -o $sonyFixed --strategy sony-xavc
-    if ($LASTEXITCODE -or -not (Test-Path -LiteralPath $engine -PathType Leaf)) { throw 'First-use Sony engine setup or repair failed' }
+    & $cli repair $sony $sonyBroken -o $sonyFixed | Tee-Object -Variable sonyLog
+    if ($LASTEXITCODE -or -not (Test-Path -LiteralPath $engine -PathType Leaf) -or
+        -not ($sonyLog -like 'Repair complete (sony-xavc-extraction)*')) { throw 'Auto did not download and use the Sony engine' }
     Test-RepairedMedia $sonyFixed 50 2
 
     $env:https_proxy = 'http://127.0.0.1:1'
     $env:no_proxy = ''
     $sonyOffline = Join-Path $testRoot 'sony cached engine.mp4'
-    & $cli repair $sony $sonyBroken -o $sonyOffline --strategy sony-xavc
-    if ($LASTEXITCODE) { throw 'Cached Sony repair failed with the download route blocked' }
+    & $cli repair $sony $sonyBroken -o $sonyOffline | Tee-Object -Variable offlineLog
+    if ($LASTEXITCODE -or -not ($offlineLog -like 'Repair complete (sony-xavc-extraction)*')) {
+        throw 'Auto did not reuse the cached Sony engine with the download route blocked'
+    }
     Test-RepairedMedia $sonyOffline 50 2
 } finally {
     $env:Path = $originalPath

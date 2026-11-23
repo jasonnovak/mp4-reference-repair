@@ -1,6 +1,6 @@
 # MP4 Reference Repair
 
-Current version **1.3.0** ships as a portable Windows x64 ZIP with Python, FFmpeg, FFprobe, and untrunc included.
+Current version **1.3.1** ships as a portable Windows x64 ZIP with Python, FFmpeg, FFprobe, and untrunc included.
 
 Repair a truncated `.mp4`, `.mov`, `.m4v`, `.3gp`, or `.m4a` recording with a healthy clip from the same camera or recording app. It never modifies either input.
 
@@ -14,12 +14,12 @@ No video is uploaded. Processing is local.
 
 ## Quick start on Windows
 
-1. Download `MP4-Reference-Repair-1.3.0-Windows-x64.zip` from [GitHub Releases](https://github.com/jasonnovak/mp4-reference-repair/releases/latest) and extract the entire ZIP.
+1. Download the `Windows-x64.zip` asset from [GitHub Releases](https://github.com/jasonnovak/mp4-reference-repair/releases/latest) and extract the entire ZIP.
 2. Open **MP4 Reference Repair.exe** in the extracted folder.
 3. Choose a healthy reference, the damaged recording, and an output filename.
-4. Select `sony-xavc` for Sony XAVC footage or leave **Method** on `auto` for other recordings. Click **Repair video**.
+4. Leave **Method** on `auto` and click **Repair video**.
 
-The first `sony-xavc` repair downloads the checksum-verified `recover_mp4` 1.92 archive directly from its publisher. The app caches the engine in `%LOCALAPPDATA%\MP4 Reference Repair` and reuses it offline. An existing `RECOVER_MP4_PATH` or `--extractor` still works. Videos are processed locally.
+Auto detects Sony XAVC from the damaged file or its reference. When it needs Sony recovery, the app downloads the checksum-verified `recover_mp4` 1.92 archive directly from its publisher, then caches the engine in `%LOCALAPPDATA%\MP4 Reference Repair` for offline use. If Sony recovery fails in Auto, the app tries untrunc. An existing `RECOVER_MP4_PATH` or `--extractor` still works. Videos are processed locally.
 
 ## Command line
 
@@ -32,7 +32,7 @@ From the extracted Windows folder:
 
 Options:
 
-- `--strategy auto` uses remux when possible, then reference reconstruction as needed.
+- `--strategy auto` tries remux when possible, then Sony XAVC recovery when detected, then untrunc if needed.
 - `--strategy reference` forces reference reconstruction.
 - `--strategy deep-scan` forces reconstruction with `untrunc -s`, scanning past unknown or corrupt byte sequences. It is slower but can recover recordings where an ordinary pass stops after only a few megabytes.
 - `--strategy sony-xavc` uses a separate Sony-aware algorithm to extract H.264 and PCM, then remuxes them at the reference frame rate. This is the preferred fallback when an untrunc log reports zero keyframes or substantial unmatched bytes.

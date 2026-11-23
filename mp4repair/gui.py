@@ -58,7 +58,7 @@ class RepairApp:
         engine_text = "Reference engine ready" if engine else "Reference engine missing (run install-engine.ps1)"
         ttk.Label(buttons, text=engine_text).pack(side="right")
 
-        ttk.Label(outer, text="Sony XAVC downloads its recovery engine on first use.").pack(anchor="w")
+        ttk.Label(outer, text="Auto detects Sony XAVC and downloads its engine on first use when needed.").pack(anchor="w")
         self.log = tk.Text(outer, height=20, wrap="word", state="disabled", font=("Consolas", 9))
         self.log.pack(fill="both", expand=True, pady=(4, 8))
         ttk.Label(outer, textvariable=self.status).pack(anchor="w")

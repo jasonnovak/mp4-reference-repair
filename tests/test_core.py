@@ -14,8 +14,10 @@ from mp4repair.core import (
     _video_frame_rate,
     compatibility,
     default_output,
+    repair,
     scan_atoms,
 )
+from mp4repair.sony_engine import SonyEngineError
 
 
 def atom(name: bytes, payload: bytes) -> bytes:
@@ -38,6 +40,19 @@ class AtomTests(unittest.TestCase):
             found = scan_atoms(path)
             self.assertEqual(found[0].name, "mdat")
             self.assertTrue(found[0].truncated)
+
+    def test_detects_xavc_in_file_type_without_readable_tracks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "camera.mp4"
+            for payload, expected in (
+                (b"XAVC\0\0\0\0mp42", True),
+                (b"mp42\0\0\0\0iso2XAVC", True),
+                (b"mp42XAVCiso2", False),
+            ):
+                with self.subTest(payload=payload):
+                    path.write_bytes(atom(b"ftyp", payload) + atom(b"mdat", b"video data"))
+                    report = MediaReport(path, path.stat().st_size, scan_atoms(path), probe_error="missing moov")
+                    self.assertEqual(_is_xavc(report), expected)
 
 
 class CompatibilityTests(unittest.TestCase):
@@ -134,6 +149,37 @@ class RecoveryLogTests(unittest.TestCase):
             self.assertNotIn("-s", calls[0])
             self.assertIn("-s", calls[1])
             self.assertEqual(output.stat().st_size, 80_000)
+
+
+class AutoRepairTests(unittest.TestCase):
+    def test_sony_download_failure_falls_back_to_untrunc(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            good, bad, output = (root / name for name in ("reference.mp4", "damaged.mp4", "repaired.mp4"))
+            good.write_bytes(b"reference")
+            bad.write_bytes(atom(b"ftyp", b"XAVC\0\0\0\0mp42"))
+            reference = MediaReport(good, 9, [Atom("moov", 0, 8, 8)], [{"codec_type": "video"}])
+            damaged = MediaReport(bad, bad.stat().st_size, scan_atoms(bad), probe_error="missing moov")
+
+            def reconstruct(reference, damaged, temp, *args, **kwargs):
+                temp.write_bytes(b"recovered")
+                return MediaReport(temp, 9, [], [{"codec_type": "video"}])
+
+            messages = []
+            with (
+                patch("mp4repair.core._tool", return_value="media-tool.exe"),
+                patch("mp4repair.core.inspect_media", side_effect=[reference, damaged]),
+                patch("mp4repair.core.find_recover_mp4", return_value=None),
+                patch("mp4repair.core.download_extractor", side_effect=SonyEngineError("download failed")) as download,
+                patch("mp4repair.core.find_untrunc", return_value=root / "untrunc.exe"),
+                patch("mp4repair.core._reference_repair", side_effect=reconstruct),
+            ):
+                result = repair(good, bad, output, log=messages.append)
+
+            download.assert_called_once()
+            self.assertEqual(result.method, "reference-reconstruction")
+            self.assertTrue(any("download failed" in line for line in messages))
+            self.assertEqual(output.read_bytes(), b"recovered")
 
 
 if __name__ == "__main__":
