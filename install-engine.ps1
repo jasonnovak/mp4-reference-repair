@@ -9,14 +9,10 @@ $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("mp4repair-untrunc-"
 try {
     Write-Host 'Finding the latest anthwlock/untrunc Windows release...'
     $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/anthwlock/untrunc/releases/latest' -Headers @{ 'User-Agent' = 'MP4-Reference-Repair' }
-    $asset = $release.assets |
-        Where-Object { $_.name -match '(?i)(win|windows|x64|64).*\.zip$' } |
-        Select-Object -First 1
+    $assetName = if ([Environment]::Is64BitOperatingSystem) { 'untrunc_x64.zip' } else { 'untrunc_x32.zip' }
+    $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
     if (-not $asset) {
-        $asset = $release.assets | Where-Object { $_.name -match '(?i)\.zip$' } | Select-Object -First 1
-    }
-    if (-not $asset) {
-        throw 'The latest release does not contain a ZIP asset. Download untrunc manually and pass --engine PATH.'
+        throw "The latest release does not contain $assetName. Download untrunc manually and pass --engine PATH."
     }
 
     New-Item -ItemType Directory -Path $stagingRoot | Out-Null

@@ -4,7 +4,7 @@ Current version: **1.2.0**. This version adds a separate Sony XAVC elementary-st
 
 Repair a truncated `.mp4`, `.mov`, `.m4v`, `.3gp`, or `.m4a` recording with a healthy clip from the same camera or recording app. It never modifies either input.
 
-The tool combines two lossless recovery methods:
+The tool offers three recovery methods:
 
 - **FFmpeg remux** when the damaged file still has readable track metadata.
 - **Reference reconstruction** with `untrunc` when an interrupted recording lost its final `moov` movie index.
@@ -14,15 +14,15 @@ No video is uploaded. Processing is local.
 
 ## Quick start on Windows
 
-The portable Windows ZIP includes both recovery engines. If you copied that package, skip directly to step 2. When using a source-only copy, install the engines once:
+Download `MP4-Reference-Repair-1.2.0-Windows.zip` from [GitHub Releases](https://github.com/jasonnovak/mp4-reference-repair/releases/latest) and extract it. Install [Python 3.10 or newer](https://www.python.org/downloads/windows/) with Tkinter and make sure `python`, `ffmpeg`, and `ffprobe` are on `PATH`. See the [FFmpeg download page](https://ffmpeg.org/download.html#build-windows) for Windows builds.
 
-1. Install the reference engine once:
+1. Open PowerShell in the extracted folder and install untrunc for reference-based recovery.
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\install-engine.ps1
    ```
 
-   For Sony XAVC recordings, also install the alternate extractor:
+   For Sony XAVC recordings, install the alternate extractor. You can run this setup on its own when you only need Sony recovery.
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\install-alternate-engine.ps1
@@ -30,9 +30,9 @@ The portable Windows ZIP includes both recovery engines. If you copied that pack
 
 2. Double-click **Start MP4 Repair Tool.cmd**.
 3. Choose a healthy reference, the damaged recording, and a new output filename.
-4. Leave **Method** on `auto` and click **Repair video**.
+4. Select `sony-xavc` for Sony footage or leave **Method** on `auto` for other recordings. Click **Repair video**.
 
-FFmpeg and FFprobe must be available on `PATH`. The installer downloads the current Windows build of [anthwlock/untrunc](https://github.com/anthwlock/untrunc), an actively maintained GPL-licensed repair engine; it is not part of this project.
+The Windows ZIP contains the app, launcher, and setup scripts. The scripts download the recovery engines from their publishers. Once set up, repairs run offline.
 
 ## Command line
 

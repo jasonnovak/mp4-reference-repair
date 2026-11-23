@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $vendorRoot = Join-Path $projectRoot 'vendor\recover_mp4'
 $stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("mp4repair-extractor-" + [guid]::NewGuid().ToString('N'))
-$listingUrl = 'https://www.videohelp.com/download/recover_mp4_192.zip'
+$downloadUrl = 'https://restore.media/blog/recover_MP4.zip'
 $expectedSha256 = 'BCCBC8A6F0D5EF7D72564DCE4F4AA059738BE985598502114BB389F60F284247'
 
 $installedExecutable = Join-Path $vendorRoot 'recover_mp4.exe'
@@ -16,20 +16,9 @@ if (Test-Path -LiteralPath $installedExecutable) {
 
 try {
     New-Item -ItemType Directory -Path $stagingRoot | Out-Null
-    Write-Host 'Requesting the recover_mp4 1.92 freeware download from VideoHelp...'
-    $listingFile = Join-Path $stagingRoot 'listing.html'
-    & curl.exe -L --fail --retry 4 --retry-delay 2 --user-agent 'Mozilla/5.0 MP4-Reference-Repair' --output $listingFile $listingUrl
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $listingFile)) {
-        throw 'Could not retrieve the VideoHelp download page.'
-    }
-    $listingContent = Get-Content -LiteralPath $listingFile -Raw
-    $match = [regex]::Match($listingContent, 'recover_mp4_192\.zip\?r=[A-Za-z0-9]+')
-    if (-not $match.Success) {
-        throw 'VideoHelp did not return a recover_mp4 download token.'
-    }
-    $downloadUrl = 'https://www.videohelp.com/download/' + $match.Value
+    Write-Host 'Downloading recover_mp4 1.92 from Restore.Media...'
     $archive = Join-Path $stagingRoot 'recover_mp4_192.zip'
-    & curl.exe -L --fail --retry 4 --retry-delay 2 --user-agent 'Mozilla/5.0 MP4-Reference-Repair' --output $archive $downloadUrl
+    & curl.exe --silent --show-error --location --fail --retry 2 --max-time 60 --output $archive $downloadUrl
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $archive)) {
         throw 'Could not download the recover_mp4 archive.'
     }
@@ -47,7 +36,7 @@ try {
     New-Item -ItemType Directory -Path $vendorRoot -Force | Out-Null
     Get-ChildItem -LiteralPath $expanded -Force | Copy-Item -Destination $vendorRoot -Force
     Write-Host "Installed Sony recovery engine: $(Join-Path $vendorRoot 'recover_mp4.exe')"
-    Write-Host 'Source: https://www.videohelp.com/software/recover-mp4-to-h264'
+    Write-Host "Source: $downloadUrl"
 }
 finally {
     if (Test-Path -LiteralPath $stagingRoot) {
