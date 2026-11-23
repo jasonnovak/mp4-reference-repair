@@ -2,12 +2,19 @@ name: Build and test Windows release
 
 on:
   workflow_dispatch:
+    inputs:
+      media_run_id:
+        description: Earlier run ID to reuse when only Windows packaging changed
+        required: false
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   media-tools:
+    if: ${{ inputs.media_run_id == '' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +43,7 @@ jobs:
 
   windows-zip:
     needs: media-tools
+    if: ${{ !cancelled() && (needs.media-tools.result == 'success' || (needs.media-tools.result == 'skipped' && inputs.media_run_id != '')) }}
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +55,8 @@ jobs:
         with:
           name: media-tools
           path: ${{ runner.temp }}/media-tools
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.media_run_id || github.run_id }}
       - name: Run unit tests and freeze both launchers
         run: |
           python -m unittest discover -s tests
@@ -62,8 +72,11 @@ jobs:
           Copy-Item (Join-Path $media 'vendor'),(Join-Path $media 'licenses') -Destination $app -Recurse
           Copy-Item LICENSE, README.md, THIRD_PARTY.md -Destination $app
           $python = python -c 'import sys; print(sys.base_prefix)'
-          Copy-Item (Join-Path $python 'LICENSE.txt') -Destination "$app/licenses/Python-LICENSE.txt"
-          Copy-Item (Join-Path $python 'tcl/tk8.6/license.terms') -Destination "$app/licenses/Tcl-Tk-LICENSE.txt"
+          $notice = Join-Path $python 'LICENSE.txt'
+          if ((Select-String -LiteralPath $notice -SimpleMatch 'Scriptics Corporation').Count -lt 2) {
+            throw 'Python license file is missing the bundled Tcl and Tk notices'
+          }
+          Copy-Item -LiteralPath $notice -Destination "$app/licenses/Python-and-Tcl-Tk-LICENSE.txt"
           New-Item -ItemType Directory -Path release | Out-Null
           $version = python -c 'from mp4repair import __version__; print(__version__)'
           $zip = "release/MP4-Reference-Repair-$version-Windows-x64.zip"
