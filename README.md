@@ -1,6 +1,6 @@
 # MP4 Reference Repair
 
-Current version: **1.2.0**. This version adds a separate Sony XAVC elementary-stream recovery engine; version 1.1's untrunc deep scan remains available.
+Current version **1.3.0** ships as a portable Windows x64 ZIP with Python, FFmpeg, FFprobe, and untrunc included.
 
 Repair a truncated `.mp4`, `.mov`, `.m4v`, `.3gp`, or `.m4a` recording with a healthy clip from the same camera or recording app. It never modifies either input.
 
@@ -14,34 +14,20 @@ No video is uploaded. Processing is local.
 
 ## Quick start on Windows
 
-Download `MP4-Reference-Repair-1.2.0-Windows.zip` from [GitHub Releases](https://github.com/jasonnovak/mp4-reference-repair/releases/latest) and extract it. Install [Python 3.10 or newer](https://www.python.org/downloads/windows/) with Tkinter and make sure `python`, `ffmpeg`, and `ffprobe` are on `PATH`. See the [FFmpeg download page](https://ffmpeg.org/download.html#build-windows) for Windows builds.
+1. Download `MP4-Reference-Repair-1.3.0-Windows-x64.zip` from [GitHub Releases](https://github.com/jasonnovak/mp4-reference-repair/releases/latest) and extract the entire ZIP.
+2. Open **MP4 Reference Repair.exe** in the extracted folder.
+3. Choose a healthy reference, the damaged recording, and an output filename.
+4. Select `sony-xavc` for Sony XAVC footage or leave **Method** on `auto` for other recordings. Click **Repair video**.
 
-1. Open PowerShell in the extracted folder and install untrunc for reference-based recovery.
-
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\install-engine.ps1
-   ```
-
-   For Sony XAVC recordings, install the alternate extractor. You can run this setup on its own when you only need Sony recovery.
-
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\install-alternate-engine.ps1
-   ```
-
-2. Double-click **Start MP4 Repair Tool.cmd**.
-3. Choose a healthy reference, the damaged recording, and a new output filename.
-4. Select `sony-xavc` for Sony footage or leave **Method** on `auto` for other recordings. Click **Repair video**.
-
-The Windows ZIP contains the app, launcher, and setup scripts. The scripts download the recovery engines from their publishers. Once set up, repairs run offline.
+The first `sony-xavc` repair downloads the checksum-verified `recover_mp4` 1.92 archive directly from its publisher. The app caches the engine in `%LOCALAPPDATA%\MP4 Reference Repair` and reuses it offline. An existing `RECOVER_MP4_PATH` or `--extractor` still works. Videos are processed locally.
 
 ## Command line
 
-From this folder:
+From the extracted Windows folder:
 
 ```powershell
-python repair_mp4.py check "broken.mp4" --reference "good.mp4"
-python repair_mp4.py repair "good.mp4" "broken.mp4"
-python repair_mp4.py repair "good.mp4" "broken.mp4" -o "recovered.mp4"
+.\mp4repair.exe check "broken.mp4" --reference "good.mp4"
+.\mp4repair.exe repair "good.mp4" "broken.mp4" -o "recovered.mp4"
 ```
 
 Options:
@@ -54,7 +40,11 @@ Options:
 - `--engine C:\path\to\untrunc.exe` selects a manually installed engine.
 - `--overwrite` replaces an existing output, but never either input.
 
-You can also install the Python command locally with `python -m pip install -e .` and then use `mp4repair`.
+### Running from source
+
+Install [Python 3.10 or newer](https://www.python.org/downloads/windows/) with Tkinter and put [FFmpeg and FFprobe](https://ffmpeg.org/download.html#build-windows) on `PATH`. On Windows, run `powershell -ExecutionPolicy Bypass -File .\install-engine.ps1` to set up untrunc. Use `python repair_mp4.py` in place of `.\mp4repair.exe`, or run **Start MP4 Repair Tool.cmd** to open the desktop app.
+
+The [Windows release workflow](.github/workflows/windows-release.yml) builds the bundled media tools and exercises the extracted ZIP on Windows. For licenses and build sources see [Third-party components](THIRD_PARTY.md).
 
 ## Choosing a good reference
 

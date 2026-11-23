@@ -55,9 +55,10 @@ class RepairApp:
         self.repair_button.pack(side="left")
         ttk.Button(buttons, text="Inspect damaged file", command=self._inspect).pack(side="left", padx=8)
         engine = find_untrunc()
-        engine_text = f"Reference engine: {engine}" if engine else "Reference engine not installed (run install-engine.ps1)"
+        engine_text = "Reference engine ready" if engine else "Reference engine missing (run install-engine.ps1)"
         ttk.Label(buttons, text=engine_text).pack(side="right")
 
+        ttk.Label(outer, text="Sony XAVC downloads its recovery engine on first use.").pack(anchor="w")
         self.log = tk.Text(outer, height=20, wrap="word", state="disabled", font=("Consolas", 9))
         self.log.pack(fill="both", expand=True, pady=(4, 8))
         ttk.Label(outer, textvariable=self.status).pack(anchor="w")

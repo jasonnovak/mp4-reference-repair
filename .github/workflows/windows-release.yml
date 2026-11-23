@@ -1,0 +1,80 @@
+name: Build and test Windows release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  media-tools:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-compiler and test fixture tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-mingw-w64-x86-64-win32 g++-mingw-w64-x86-64-win32 nasm ffmpeg
+      - name: Build FFmpeg, FFprobe, and untrunc with matching source archive
+        run: bash packaging/build-windows-media.sh "$RUNNER_TEMP/media-tools"
+      - name: Generate H.264/AAC and XAVC-style H.264/PCM fixtures
+        run: |
+          mkdir "$RUNNER_TEMP/media-tools/fixtures"
+          cd "$RUNNER_TEMP/media-tools/fixtures"
+          ffmpeg -v error -f lavfi -i testsrc2=size=320x180:rate=30 \
+            -f lavfi -i sine=frequency=440:sample_rate=48000 -t 2 \
+            -c:v libx264 -g 30 -c:a aac standard.mp4
+          ffmpeg -v error -f lavfi -i testsrc2=size=320x180:rate=50 \
+            -f lavfi -i sine=frequency=440:sample_rate=48000 -t 2 \
+            -c:v libx264 -g 50 -c:a pcm_s16be -ac 2 -brand XAVC sony.mov
+      - uses: actions/upload-artifact@v4
+        with:
+          name: media-tools
+          path: ${{ runner.temp }}/media-tools
+          if-no-files-found: error
+
+  windows-zip:
+    needs: media-tools
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: media-tools
+          path: ${{ runner.temp }}/media-tools
+      - name: Run unit tests and freeze both launchers
+        run: |
+          python -m unittest discover -s tests
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m pip install pyinstaller==6.22.3
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m PyInstaller --noconfirm packaging/windows.spec
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build portable ZIP
+        run: |
+          $app = 'dist/MP4 Reference Repair'
+          $media = Join-Path $env:RUNNER_TEMP 'media-tools'
+          Copy-Item (Join-Path $media 'vendor'),(Join-Path $media 'licenses') -Destination $app -Recurse
+          Copy-Item LICENSE, README.md, THIRD_PARTY.md -Destination $app
+          $python = python -c 'import sys; print(sys.base_prefix)'
+          Copy-Item (Join-Path $python 'LICENSE.txt') -Destination "$app/licenses/Python-LICENSE.txt"
+          Copy-Item (Join-Path $python 'tcl/tk8.6/license.terms') -Destination "$app/licenses/Tcl-Tk-LICENSE.txt"
+          New-Item -ItemType Directory -Path release | Out-Null
+          $version = python -c 'from mp4repair import __version__; print(__version__)'
+          $zip = "release/MP4-Reference-Repair-$version-Windows-x64.zip"
+          Compress-Archive -LiteralPath $app -DestinationPath $zip
+          Copy-Item (Join-Path $media 'Media-Tools-Corresponding-Source.zip') -Destination release
+          "RELEASE_ZIP=$zip" >> $env:GITHUB_ENV
+      - name: Exercise the extracted ZIP without installed tools
+        run: |
+          packaging/test-windows-zip.ps1 -Zip $env:RELEASE_ZIP -Fixtures (Join-Path $env:RUNNER_TEMP 'media-tools/fixtures')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: release/*.zip
+          if-no-files-found: error

@@ -6,11 +6,14 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
 from typing import Callable
+
+from .sony_engine import SonyEngineError, cached_extractor, download_extractor
 
 
 LogFn = Callable[[str], None]
@@ -63,7 +66,17 @@ class RepairResult:
     report: MediaReport
 
 
+def _app_directory() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
 def _tool(name: str) -> str | None:
+    if os.name == "nt" and name in {"ffmpeg", "ffprobe"}:
+        bundled = _app_directory() / "vendor" / "media" / f"{name}.exe"
+        if bundled.is_file():
+            return str(bundled)
     return shutil.which(name)
 
 
@@ -74,9 +87,10 @@ def find_untrunc(explicit: str | os.PathLike[str] | None = None) -> Path | None:
     if os.environ.get("UNTRUNC_PATH"):
         candidates.append(Path(os.environ["UNTRUNC_PATH"]))
 
-    here = Path(__file__).resolve().parent.parent
+    here = _app_directory()
     candidates.extend(
         [
+            here / "vendor" / "media" / "untrunc.exe",
             here / "vendor" / "untrunc" / "untrunc.exe",
             here / "vendor" / "untrunc" / "untrunc",
             here / "tools" / "untrunc.exe",
@@ -94,13 +108,15 @@ def find_recover_mp4(explicit: str | os.PathLike[str] | None = None) -> Path | N
         candidates.append(Path(explicit))
     if os.environ.get("RECOVER_MP4_PATH"):
         candidates.append(Path(os.environ["RECOVER_MP4_PATH"]))
-    here = Path(__file__).resolve().parent.parent
+    here = _app_directory()
     candidates.extend(
         [
             here / "vendor" / "recover_mp4" / "recover_mp4.exe",
             here / "tools" / "recover_mp4.exe",
         ]
     )
+    if cached := cached_extractor():
+        candidates.append(cached)
     on_path = _tool("recover_mp4") or _tool("recover_mp4.exe")
     if on_path:
         candidates.append(Path(on_path))
@@ -638,13 +654,15 @@ def repair(
 
         sony_extractor = find_recover_mp4(extractor)
         if strategy == "sony-xavc" or (strategy == "auto" and _is_xavc(ref_report) and sony_extractor):
-            if not sony_extractor:
-                raise RepairError(
-                    "Sony XAVC recovery requires recover_mp4. Run install-alternate-engine.ps1 "
-                    "or pass --extractor PATH."
-                )
             if not ffmpeg:
                 raise RepairError("Sony XAVC recovery requires ffmpeg on PATH.")
+            if not sony_extractor:
+                if extractor is not None:
+                    raise RepairError(f"Sony recovery engine not found: {extractor}")
+                try:
+                    sony_extractor = download_extractor(logger)
+                except SonyEngineError as exc:
+                    raise RepairError(str(exc)) from exc
             try:
                 output_report = _sony_extract_repair(
                     good,

@@ -3,5 +3,8 @@ __pycache__/
 .pytest_cache/
 vendor/untrunc/
 vendor/recover_mp4/
+vendor/media/
+/build/
+/dist/
 .recover-mp4-inspect/
 *.recovery-part.*
